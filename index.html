@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Villa Resort Reservation</title>
+    <style>
+        * { box-sizing: border-box; font-family: Arial, sans-serif; margin: 0; padding: 0; }
+        body { background: #e0f2f2; padding: 30px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        .admin-link { text-align: right; padding: 12px 20px; background: #f8f9fa; border-bottom: 1px solid #eee; }
+        .admin-link a { color: #666; font-size: 13px; text-decoration: none; }
+        .admin-link a:hover { color: #006666; text-decoration: underline; }
+        h1 { background: #006666; color: white; padding: 20px; text-align: center; font-size: 24px; }
+        .section { padding: 25px; border-bottom: 1px solid #eee; }
+        h2 { color: #006666; margin-bottom: 18px; font-size: 18px; }
+        label { display: block; margin: 12px 0 5px; font-size: 15px; }
+        input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 15px; }
+        button { background: #008080; color: white; border: none; padding: 11px 20px; border-radius: 5px; font-size: 16px; cursor: pointer; margin-top: 12px; }
+        button:hover { background: #005959; }
+        .msg { margin-top: 18px; padding: 14px; background: #f0f8f8; border-radius: 5px; font-weight: bold; color: #006666; font-size: 15px; }
+
+        /* ✅ MONTH NAVIGATION BUTTONS */
+        .calendar-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .calendar-nav h3 { color: #006666; font-size: 20px; }
+        .nav-btn { background: #008080; color: white; padding: 8px 14px; border-radius: 5px; text-decoration: none; font-size: 14px; font-weight: bold; }
+        .nav-btn:hover { background: #005959; }
+
+        /* CALENDAR STYLES */
+        .calendar { margin-top: 10px; }
+        .calendar-header { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; font-weight: bold; color: #333; font-size: 13px; margin-bottom: 6px; }
+        .calendar-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+        .day { 
+            padding: 8px 4px; text-align: center; border-radius: 6px; font-size: 14px; 
+            cursor: pointer; transition: all 0.2s; min-height: 65px;
+            display: flex; flex-direction: column; justify-content: center;
+            border: 1px solid #ddd;
+        }
+        .day:hover { transform: scale(1.05); box-shadow: 0 3px 8px rgba(0,0,0,0.15); }
+        .day.empty { background: transparent; border: none; cursor: default; }
+        .day.past { background: #e9ecef; color: #999; cursor: not-allowed; border-color: #ddd; }
+        .day.available { 
+            background: #d4edda; color: #0f5132; font-weight: bold; 
+            border-color: #badbcc; cursor: pointer;
+        }
+        .day.available:hover { background: #b7e1c4; }
+        .day.booked { 
+            background: #f8d7da; color: #842029; font-weight: bold; 
+            border-color: #f5c2c7; cursor: not-allowed;
+        }
+        .day.selected { background: #fff3cd; color: #664d03; border: 2px solid #ffc107; }
+        .day-label { font-size: 11px; margin-top: 4px; font-weight: normal; padding: 2px 6px; border-radius: 3px; display: inline-block; }
+        .label-booked { background: #f1aeb5; color: #5c1b23; }
+        .label-available { background: #a3cfb8; color: #0f3d1e; }
+        .label-past { background: #ddd; color: #666; }
+        .label-selected { background: #ffd966; color: #664d03; }
+        .legend { margin-top: 18px; display: flex; gap: 25px; font-size: 14px; flex-wrap: wrap; justify-content: center; }
+        .legend span { display: flex; align-items: center; gap: 6px; }
+        .legend-dot { width: 18px; height: 18px; border-radius: 4px; display: inline-block; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="admin-link">
+        <a href="/login">🔐 Admin Login</a>
+    </div>
+
+    <h1>🏡 Private Villa Resort Reservation</h1>
+
+    <!-- CALENDAR WITH MONTH NAVIGATION -->
+    <div class="section">
+        <h2>📅 Availability Calendar — Browse Months Below</h2>
+        {{ calendar|safe }}
+        <div class="legend">
+            <span><span class="legend-dot" style="background:#d4edda; border-color:#badbcc;"></span> ✅ AVAILABLE — Click to book!</span>
+            <span><span class="legend-dot" style="background:#f8d7da; border-color:#f5c2c7;"></span> ❌ BOOKED — Not available</span>
+            <span><span class="legend-dot" style="background:#e9ecef; border-color:#ddd;"></span> ⏳ Past Date</span>
+        </div>
+    </div>
+
+    <!-- CHECK AVAILABILITY -->
+    <div class="section">
+        <h2>🔍 Check Availability</h2>
+        <form action="/check" method="post" id="checkForm">
+            <label>Check-in Date:</label>
+            <input type="date" name="check_in" id="check_in" required>
+            <label>Check-out Date:</label>
+            <input type="date" name="check_out" id="check_out" required>
+            <button type="submit">Check Dates</button>
+        </form>
+    </div>
+
+    <!-- MAKE RESERVATION -->
+    <div class="section">
+        <h2>📅 Make a Reservation</h2>
+        <form action="/book" method="post" id="bookForm">
+            <label>Your Full Name:</label>
+            <input type="text" name="guest_name" required placeholder="Enter your name">
+            <label>Check-in Date:</label>
+            <input type="date" name="check_in" id="book_check_in" required>
+            <label>Check-out Date:</label>
+            <input type="date" name="check_out" id="book_check_out" required>
+            <button type="submit">Reserve Now</button>
+        </form>
+    </div>
+
+    {% if message %}
+    <div class="section msg">{{ message }}</div>
+    {% endif %}
+</div>
+
+<script>
+let selectedDates = [];
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('day') && e.target.classList.contains('available')) {
+        const dateStr = e.target.getAttribute('data-date');
+        if (!dateStr) return;
+        
+        if (selectedDates.length === 0) {
+            selectedDates.push(dateStr);
+            e.target.classList.add('selected');
+            e.innerHTML = e.innerHTML.split('<')[0] + '<div class="day-label label-selected">✓ CHECK-IN</div>';
+        } else if (selectedDates.length === 1) {
+            if (dateStr > selectedDates[0]) {
+                selectedDates.push(dateStr);
+                document.getElementById('check_in').value = selectedDates[0];
+                document.getElementById('check_out').value = selectedDates[1];
+                document.getElementById('book_check_in').value = selectedDates[0];
+                document.getElementById('book_check_out').value = selectedDates[1];
+                alert('✅ Dates Selected!\nCheck-in: ' + selectedDates[0] + '\nCheck-out: ' + selectedDates[1]);
+                document.querySelectorAll('.day.selected').forEach(d => {
+                    d.classList.remove('selected');
+                    d.innerHTML = d.innerHTML.split('<')[0] + '<div class="day-label label-available">✅ AVAILABLE</div>';
+                });
+                selectedDates = [];
+            } else {
+                alert('❌ Check-out must be AFTER Check-in!');
+                selectedDates = [];
+                document.querySelectorAll('.day.selected').forEach(d => {
+                    d.classList.remove('selected');
+                    d.innerHTML = d.innerHTML.split('<')[0] + '<div class="day-label label-available">✅ AVAILABLE</div>';
+                });
+            }
+        }
+    }
+});
+</script>
+</body>
+</html>
