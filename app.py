@@ -1,9 +1,13 @@
 from flask import Flask, render_template, request, session, redirect, url_for
 from datetime import datetime, date, timedelta
 import calendar
+import os
+import secrets as secrets_mod
 
 app = Flask(__name__)
-app.secret_key = "resort_secret_123"
+# Reads from env var in production; falls back to a random key per-run in dev
+# so a stale hardcoded secret can't be reused to forge sessions.
+app.secret_key = os.environ.get("FLASK_SECRET_KEY") or secrets_mod.token_hex(32)
 
 # ==========================================
 # OOP: BOOKING CLASS
@@ -69,6 +73,21 @@ def get_booked_dates():
 
 
 # ==========================================
+# Resolve which (year, month) is being viewed
+# ==========================================
+def get_year_month(source):
+    now = datetime.now()
+    try:
+        y = int(source.get("y", now.year))
+        m = int(source.get("m", now.month))
+        if m < 1 or m > 12:
+            y, m = now.year, now.month
+    except (TypeError, ValueError):
+        y, m = now.year, now.month
+    return y, m
+
+
+# ==========================================
 # Generate Calendar HTML
 # ==========================================
 def generate_calendar(year, month):
@@ -115,17 +134,11 @@ def generate_calendar(year, month):
 @app.route("/")
 def home():
     sort_bookings_bubble()
-    now = datetime.now()
-    try:
-        y = int(request.args.get("y", now.year))
-        m = int(request.args.get("m", now.month))
-        if m < 1 or m > 12:
-            y, m = now.year, now.month
-    except:
-        y, m = now.year, now.month
+    y, m = get_year_month(request.args)
 
     cal = generate_calendar(y, m)
-    return render_template("index.html", calendar=cal, message=request.args.get("msg"))
+    return render_template("index.html", calendar=cal, year=y, month=m,
+                            message=request.args.get("msg"))
 
 
 # ==========================================
@@ -134,19 +147,13 @@ def home():
 @app.route("/book", methods=["GET", "POST"])
 def make_booking():
     now = datetime.now()
-    try:
-        y = int(request.args.get("y", now.year))
-        m = int(request.args.get("m", now.month))
-        if m < 1 or m > 12:
-            y, m = now.year, now.month
-    except:
-        y, m = now.year, now.month
 
-    cal = generate_calendar(y, m)
-    message = None
-
-    # ✅ ONLY PROCESS BOOKING WHEN FORM IS SUBMITTED
     if request.method == "POST":
+        # Read the month/year the guest was actually looking at (hidden
+        # form fields), not just the query string, so a booking made while
+        # browsing a future month doesn't bounce back to the current month.
+        y, m = get_year_month(request.form)
+
         name = request.form.get("guest_name", "").strip()
         start = request.form.get("check_in", "").strip()
         end = request.form.get("check_out", "").strip()
@@ -173,7 +180,14 @@ def make_booking():
             except ValueError:
                 message = "❌ Invalid date! Use YYYY-MM-DD format"
 
-    return render_template("index.html", calendar=cal, message=message)
+        # Redirect (PRG pattern) instead of re-rendering directly, so
+        # refreshing the result page never re-submits the booking.
+        return redirect(url_for("home", y=y, m=m, msg=message))
+
+    # GET /book with no form submitted — just show the booking page.
+    y, m = get_year_month(request.args)
+    cal = generate_calendar(y, m)
+    return render_template("index.html", calendar=cal, year=y, month=m, message=None)
 
 
 # ==========================================
@@ -183,21 +197,21 @@ def make_booking():
 def check_availability():
     start = request.form.get("check_in", "").strip()
     end = request.form.get("check_out", "").strip()
-    now = datetime.now()
+    y, m = get_year_month(request.form)
+    cal = generate_calendar(y, m)
+
     try:
         check_in = datetime.strptime(start, "%Y-%m-%d")
         check_out = datetime.strptime(end, "%Y-%m-%d")
-    except:
-        cal = generate_calendar(now.year, now.month)
-        return render_template("index.html", calendar=cal, message="❌ Invalid date!")
+    except ValueError:
+        return render_template("index.html", calendar=cal, year=y, month=m, message="❌ Invalid date!")
 
     if check_in >= check_out:
-        cal = generate_calendar(now.year, now.month)
-        return render_template("index.html", calendar=cal, message="❌ Check-out must be AFTER Check-in!")
+        return render_template("index.html", calendar=cal, year=y, month=m,
+                                message="❌ Check-out must be AFTER Check-in!")
 
     msg = "✅ AVAILABLE — You can book!" if is_available(check_in, check_out) else "❌ NOT AVAILABLE — dates overlap!"
-    cal = generate_calendar(now.year, now.month)
-    return render_template("index.html", calendar=cal, message=msg)
+    return render_template("index.html", calendar=cal, year=y, month=m, message=msg)
 
 
 # ==========================================
@@ -206,7 +220,10 @@ def check_availability():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        if request.form["username"] == ADMIN_USERNAME and request.form["password"] == ADMIN_PASSWORD:
+        username = request.form.get("username", "")
+        password = request.form.get("password", "")
+        if (secrets_mod.compare_digest(username, ADMIN_USERNAME)
+                and secrets_mod.compare_digest(password, ADMIN_PASSWORD)):
             session["admin_logged_in"] = True
             return redirect(url_for("admin_dashboard"))
         return render_template("login.html", error="❌ Wrong username or password!")
@@ -227,14 +244,7 @@ def admin_dashboard():
     if not session.get("admin_logged_in"):
         return redirect(url_for("login"))
     sort_bookings_bubble()
-    now = datetime.now()
-    try:
-        y = int(request.args.get("y", now.year))
-        m = int(request.args.get("m", now.month))
-        if m < 1 or m > 12:
-            y, m = now.year, now.month
-    except:
-        y, m = now.year, now.month
+    y, m = get_year_month(request.args)
 
     cal = generate_calendar(y, m)
     return render_template("admin.html", bookings=booking_list, calendar=cal)
@@ -254,4 +264,5 @@ def delete_booking(index):
 # RUN THE APP
 # ==========================================
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    debug_mode = os.environ.get("FLASK_DEBUG", "1") == "1"
+    app.run(host="0.0.0.0", port=5000, debug=debug_mode)

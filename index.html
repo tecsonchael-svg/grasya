@@ -80,6 +80,8 @@
     <div class="section">
         <h2>🔍 Check Availability</h2>
         <form action="/check" method="post" id="checkForm">
+            <input type="hidden" name="y" value="{{ year }}">
+            <input type="hidden" name="m" value="{{ month }}">
             <label>Check-in Date:</label>
             <input type="date" name="check_in" id="check_in" required>
             <label>Check-out Date:</label>
@@ -92,6 +94,8 @@
     <div class="section">
         <h2>📅 Make a Reservation</h2>
         <form action="/book" method="post" id="bookForm">
+            <input type="hidden" name="y" value="{{ year }}">
+            <input type="hidden" name="m" value="{{ month }}">
             <label>Your Full Name:</label>
             <input type="text" name="guest_name" required placeholder="Enter your name">
             <label>Check-in Date:</label>
